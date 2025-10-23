@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Test cache
+.pytest_cache/
+
+# Database file (PENTING)
+dedup_store.db
+dedup_store.db-journal
+
+# OS files
+.DS_Store

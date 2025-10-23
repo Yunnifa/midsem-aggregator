@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  # Layanan 1: Aggregator (Server FastAPI kita)
+  aggregator:
+    build: .  # Build dari Dockerfile di folder ini
+    container_name: aggregator_service
+    ports:
+      - "8080:8080" # Map port host 8080 ke port container 8080
+    volumes:
+      - ./dedup_store.db:/app/dedup_store.db # Volume untuk persistensi DB
+
+  # Layanan 2: Publisher (Skrip Python kita)
+  publisher:
+    build: . # Menggunakan image yang SAMA dengan aggregator
+    container_name: publisher_service
+    command: sh -c "sleep 5 && python publisher.py"
+    environment:
+      - API_URL=http://aggregator:8080/publish # Override API_URL
+    depends_on:
+      - aggregator # Tunggu aggregator (containernya) nyala dulu
