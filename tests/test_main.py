@@ -119,3 +119,138 @@ def test_schema_validation_error():
     response = client.post("/publish", json=bad_event)
     # FastAPI harus menolaknya dengan status 422 (Unprocessable Entity)
     assert response.status_code == 422
+
+
+def test_persistence_after_restart():
+    """
+    Test 5: Persistensi dedup store setelah restart
+    Memastikan bahwa event yang sudah diproses tetap dianggap duplikat
+    setelah restart (simulasi dengan reset in-memory tapi database tetap ada)
+    """
+    client = TestClient(app)
+    
+    event_persistent = {
+        "topic": "persistent_test",
+        "event_id": "persistent-id-999",
+        "source": "tester",
+        "payload": {"data": "important"}
+    }
+    
+    # Kirim event pertama kali
+    response1 = client.post("/publish", json=[event_persistent])
+    assert response1.status_code == 200
+    
+    # Verifikasi event diproses
+    stats1 = client.get("/stats").json()
+    assert stats1["unique_processed"] == 1
+    assert stats1["duplicate_dropped"] == 0
+    
+    # Simulasi restart: Hapus in-memory store tapi SQLite tetap ada
+    # (dalam test, kita tidak perlu restart container, cukup clear in-memory)
+    # Catatan: SQLite DB tidak direset karena setup_teardown hanya clear di awal test
+    processed_events.clear()
+    
+    # Kirim event yang SAMA lagi setelah "restart"
+    response2 = client.post("/publish", json=[event_persistent])
+    assert response2.status_code == 200
+    
+    # Verifikasi event dianggap DUPLIKAT (tidak diproses ulang)
+    stats2 = client.get("/stats").json()
+    assert stats2["unique_processed"] == 1  # Masih 1, tidak bertambah
+    assert stats2["duplicate_dropped"] == 1  # Duplikat terdeteksi
+    
+    # In-memory store kosong (karena di-clear), tapi dedup tetap bekerja
+    events = client.get("/events?topic=persistent_test").json()
+    assert len(events) == 0  # In-memory di-clear
+    # Tapi SQLite masih punya record event_id ini
+
+
+def test_batch_processing_performance():
+    """
+    Test 6: Stress test kecil dengan batch processing
+    Mengirim 500 events dalam satu batch dan mengukur bahwa
+    semua terproses dengan benar dalam waktu yang wajar
+    """
+    client = TestClient(app)
+    
+    batch_size = 500
+    events_batch = []
+    
+    for i in range(batch_size):
+        events_batch.append({
+            "topic": "batch_test",
+            "event_id": f"batch-id-{i}",
+            "source": "batch_tester",
+            "payload": {"index": i}
+        })
+    
+    # Ukur waktu eksekusi
+    start_time = time.time()
+    response = client.post("/publish", json=events_batch)
+    elapsed_time = time.time() - start_time
+    
+    assert response.status_code == 200
+    
+    # Verifikasi semua events diproses
+    stats = client.get("/stats").json()
+    assert stats["received"] == batch_size
+    assert stats["unique_processed"] == batch_size
+    assert stats["duplicate_dropped"] == 0
+    
+    # Assert waktu eksekusi dalam batas wajar (< 5 detik untuk 500 events)
+    assert elapsed_time < 5.0, f"Batch processing took too long: {elapsed_time:.2f}s"
+    
+    # Verifikasi semua events ada di in-memory store
+    events = client.get("/events?topic=batch_test").json()
+    assert len(events) == batch_size
+
+
+def test_multiple_topics_isolation():
+    """
+    Test 7: Memastikan composite key (topic:event_id) bekerja dengan benar
+    Event dengan event_id sama tapi topic berbeda harus dianggap UNIK
+    """
+    client = TestClient(app)
+    
+    same_event_id = "shared-id-123"
+    
+    event_topic_a = {
+        "topic": "topic-A",
+        "event_id": same_event_id,
+        "source": "tester",
+        "payload": {"msg": "from topic A"}
+    }
+    
+    event_topic_b = {
+        "topic": "topic-B",
+        "event_id": same_event_id,  # Event_id SAMA
+        "source": "tester",
+        "payload": {"msg": "from topic B"}
+    }
+    
+    # Kirim kedua events
+    response = client.post("/publish", json=[event_topic_a, event_topic_b])
+    assert response.status_code == 200
+    
+    # Verifikasi KEDUANYA diproses (tidak dianggap duplikat)
+    stats = client.get("/stats").json()
+    assert stats["received"] == 2
+    assert stats["unique_processed"] == 2  # Keduanya unik
+    assert stats["duplicate_dropped"] == 0  # Tidak ada duplikat
+    
+    # Verifikasi masing-masing topic ada event-nya
+    events_a = client.get("/events?topic=topic-A").json()
+    assert len(events_a) == 1
+    assert events_a[0]["event_id"] == same_event_id
+    
+    events_b = client.get("/events?topic=topic-B").json()
+    assert len(events_b) == 1
+    assert events_b[0]["event_id"] == same_event_id
+    
+    # Kirim duplikat untuk topic-A (seharusnya ditolak)
+    response2 = client.post("/publish", json=[event_topic_a])
+    assert response2.status_code == 200
+    
+    stats2 = client.get("/stats").json()
+    assert stats2["unique_processed"] == 2  # Masih 2
+    assert stats2["duplicate_dropped"] == 1  # Duplikat terdeteksi

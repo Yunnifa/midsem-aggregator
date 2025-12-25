@@ -1,139 +1,166 @@
-# UTS Pub-Sub Log Aggregator
+# UTS: Pub-Sub Log Aggregator
 
-Proyek ini adalah implementasi layanan log aggregator untuk Ujian Tengah Semester (UTS) Sistem Paralel dan Terdistribusi.
+**Sistem Paralel dan Terdistribusi**
 
-Layanan ini dirancang untuk menerima *event* atau *log* dari berbagai sumber (*publisher*), melakukan deduplikasi (menjamin *idempotency*), dan menyimpan *event* yang unik secara persisten.
-
-## Fitur Utama
-
-* API berbasis **FastAPI** untuk menerima *event*.
-* Logika **Deduplikasi** menggunakan (topic, event\_id) sebagai kunci unik.
-* Penyimpanan **Persisten** menggunakan **SQLite** (`aiosqlite`).
-* **Kontainerisasi** penuh menggunakan **Docker**.
-* **Unit Test** menggunakan **Pytest** untuk memvalidasi fungsionalitas inti.
-* **Uji Performa** untuk memvalidasi pemrosesan 5.000+ *event*.
-* **Bonus**: Orkestrasi layanan menggunakan **Docker Compose**.
-
-## Teknologi yang Digunakan
-
-* Python 3.11
-* FastAPI
-* Uvicorn
-* Aiosqlite
-* Pytest
-* Httpx
-* Docker & Docker Compose
+Implementasi layanan log aggregator dengan **Idempotent Consumer** dan **Deduplication** menggunakan FastAPI, SQLite, dan Docker.
 
 ---
 
-## Cara Menjalankan Proyek
+## 🛠️ Teknologi
 
-Anda bisa menjalankan proyek ini dengan 3 cara. Cara yang direkomendasikan adalah Opsi 1 (Docker) atau Opsi 2 (Docker Compose).
-
-### Prasyarat
-
-* **Docker Desktop** (harus sudah terinstal dan berjalan).
-* **Python 3.8+** (hanya diperlukan untuk Opsi 3).
-
-### Opsi 1: Menjalankan dengan Docker (Wajib)
-
-Ini adalah cara standar untuk menjalankan layanan *aggregator* sesuai spesifikasi tugas.
-
-1.  **Build Docker Image:**
-    Buka terminal di folder proyek dan jalankan:
-    ```bash
-    docker build -t uts-aggregator .
-    ```
-
-2.  **Jalankan Docker Container:**
-    Setelah *image* selesai di-build, jalankan *container* dengan perintah berikut:
-    ```bash
-    docker run --rm -p 8080:8080 -v ./dedup_store.db:/app/dedup_store.db --name my-aggregator uts-aggregator
-    ```
-
-**Penjelasan Perintah:**
-* `--rm`: Otomatis menghapus *container* saat dihentikan.
-* `-p 8080:8080`: Memetakan port 8080 di komputer Anda ke port 8080 di dalam *container*.
-* `-v ./dedup_store.db:/app/dedup_store.db`: Ini adalah **Docker Volume**. Ini "menyambungkan" file `dedup_store.db` di folder lokal Anda ke file `/app/dedup_store.db` di dalam *container*. Ini yang membuat *database* Anda **persisten** (tidak hilang saat *container* di-restart).
-
-Server aggregator sekarang berjalan di `http://127.0.0.1:8080`.
-
-### Opsi 2: Menjalankan dengan Docker Compose (Bonus)
-
-Ini adalah cara yang lebih mudah untuk menjalankan layanan *aggregator* dan *publisher* secara bersamaan (sesuai bagian bonus).
-
-1.  **Build dan Jalankan Semua Layanan:**
-    Cukup jalankan satu perintah:
-    ```bash
-    docker-compose up --build
-    ```
-    Perintah ini akan otomatis:
-    * Membangun *image* Docker.
-    * Menjalankan layanan `aggregator` (server).
-    * Menjalankan layanan `publisher` (skrip klien), yang akan menunggu 5 detik lalu mengirim *event* ke `aggregator`.
-
-2.  **Untuk Berhenti:**
-    Tekan `Ctrl + C` di terminal, lalu jalankan:
-    ```bash
-    docker-compose down
-    ```
-
-### Opsi 3: Menjalankan di Lokal (Untuk Development)
-
-Ini adalah cara menjalankan server di komputer lokal Anda tanpa Docker, biasanya digunakan untuk *coding* dan *debugging* cepat.
-
-1.  **Buat dan Aktifkan Virtual Environment:**
-    ```bash
-    python -m venv .venv
-    .\.venv\Scripts\activate
-    ```
-
-2.  **Instal Dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3.  **Jalankan Server FastAPI:**
-    ```bash
-    uvicorn src.main:app --reload --port 8080
-    ```
-    Server akan berjalan di `http://127.0.0.1:8080`.
+- **Python 3.11** + FastAPI (async)
+- **SQLite** (persistent dedup store)
+- **Docker** & Docker Compose
+- **Pytest** (7 unit tests)
 
 ---
 
-## Cara Menjalankan Tes
+## 🚀 Cara Menjalankan
 
-Proyek ini dilengkapi dengan 4 *unit test* untuk memvalidasi logika inti.
+### Opsi 1: Docker Compose (Recommended)
 
-1.  **Aktifkan Virtual Environment:**
-    ```bash
-    .\.venv\Scripts\activate
-    ```
-2.  **Jalankan Pytest:**
-    ```bash
-    pytest
-    ```
-    Anda akan melihat hasil `4 passed` jika semua tes berhasil.
+```bash
+# Build dan run aggregator + publisher
+docker-compose up --build
+
+# Stop
+docker-compose down
+```
+
+### Opsi 2: Docker Manual
+
+```bash
+# Build image
+docker build -t uts-aggregator .
+
+# Run container (dengan persistent volume)
+docker run --rm -p 8080:8080 -v ${PWD}/dedup_store.db:/app/dedup_store.db --name my-aggregator uts-aggregator
+```
+
+Server berjalan di: **http://localhost:8080**
+
+---
+
+## 📡 API Endpoints
+
+### 1. POST /publish - Kirim Events
+
+**Request** (array of events):
+```bash
+curl -X POST http://localhost:8080/publish \
+-H "Content-Type: application/json" \
+-d '[
+  {
+    "topic": "logs",
+    "event_id": "unique-id-123",
+    "source": "service-A",
+    "payload": {"message": "Hello"}
+  }
+]'
+```
+
+**Response:**
+```json
+{"status": "events processed"}
+```
+
+### 2. GET /stats - Statistik
+
+```bash
+curl http://localhost:8080/stats
+```
+
+**Response:**
+```json
+{
+  "received": 10,
+  "unique_processed": 8,
+  "duplicate_dropped": 2,
+  "topics": ["logs", "metrics"],
+  "uptime": "0:05:23.123456"
+}
+```
+
+### 3. GET /events?topic={topic} - Query Events
+
+```bash
+curl http://localhost:8080/events?topic=logs
+```
+
+**Response:** Array of events untuk topic tersebut.
 
 ---
 
-## Endpoint API
+## 🧪 Testing
 
-Server menyediakan 3 *endpoint* utama:
+### Unit Tests (7 tests)
 
-* **`POST /publish`**
-    Menerima satu atau *batch* *event* dalam format JSON untuk diproses.
+```bash
+# Run semua tests
+pytest -v
 
-* **`GET /events`**
-    Mengambil daftar *event* unik yang telah berhasil diproses.
-    * Query Param: `topic` (contoh: `GET /events?topic=logs`)
+# Atau dengan python
+python -m pytest tests/test_main.py -v
+```
 
-* **`GET /stats`**
-    Menampilkan statistik operasional server, termasuk:
-    * `received`: Total *event* yang diterima.
-    * `unique_processed`: Jumlah *event* unik yang disimpan.
-    * `duplicate_dropped`: Jumlah duplikat yang ditolak.
-    * `topics`: Daftar *topic* yang telah diproses.
-    * `uptime`: Waktu server berjalan.
+**Coverage:**
+- Deduplication logic
+- Persistent dedup store (restart-safe)
+- API validation (Pydantic)
+- Batch processing (500 events)
+- Multi-topic isolation
+
+### Performance Test
+
+```bash
+# Pastikan server running di localhost:8080
+python performance_test.py
+```
+
+Test 5000 events (4000 unique, 1000 duplicate) dalam ~4 detik.
+
+### Publisher Script
+
+```bash
+# Kirim sample events dengan duplikat
+python publisher.py
+```
 
 ---
+
+## 📁 Struktur Project
+
+```
+midsem-aggregator/
+├── src/
+│   └── main.py                 # FastAPI application
+├── tests/
+│   └── test_main.py            # 7 unit tests
+├── docs/
+│   └── buku-utama.pdf.pdf      # Referensi teori
+├── Dockerfile                  # Container definition
+├── docker-compose.yml          # Multi-service orchestration
+├── requirements.txt            # Dependencies
+├── publisher.py                # Client demo script
+├── performance_test.py         # Performance validation
+├── report.md                   # Laporan teori lengkap (T1-T8)
+├── VERIFICATION_GUIDE.md       # Panduan step-by-step
+└── README.md                   # This file
+```
+
+---
+
+## 📐 Keputusan Desain (Bab 1-7)
+
+- **Idempotency (Bab 3):** Composite key `topic:event_id` untuk uniqueness
+- **Naming (Bab 4):** UUID v4 untuk collision resistance
+- **Fault Tolerance (Bab 6):** SQLite persistent store (restart-safe)
+- **Consistency (Bab 7):** Eventual consistency dengan deduplication
+
+Detail lengkap: Lihat **[report.md](./report.md)**
+
+---
+
+## 🎥 Video Demo
+
+**Link YouTube:** [PLACEHOLDER - Update setelah upload video demo]
