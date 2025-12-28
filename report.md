@@ -1,7 +1,5 @@
 # Soal Teori UTS: Pub-Sub Log Aggregator
 **Sistem Paralel dan Terdistribusi**
-
-REPORT UTS SISTEM TERDISTRIBUSI
 Pub-Sub Log Aggregator dengan Idempotent Consumer dan Deduplication
 
 Nama: Yunnifa Nur Lailli
