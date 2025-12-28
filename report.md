@@ -1,4 +1,4 @@
-# Laporan UTS: Pub-Sub Log Aggregator
+# Soal Teori UTS: Pub-Sub Log Aggregator
 **Sistem Paralel dan Terdistribusi**
 
 REPORT UTS SISTEM TERDISTRIBUSI
