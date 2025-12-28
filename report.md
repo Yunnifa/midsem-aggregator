@@ -132,7 +132,9 @@ Sistem ini merupakan implementasi Pub-Sub Log Aggregator yang menerima event/log
 
 Dedup store disimpan di file database SQLite (di-mount sebagai volume Docker), sehingga ketika container restart, sistem tetap “ingat” event mana yang sudah diproses dan tidak akan memproses ulang duplikat yang sama.
 
-ARSITEKTUR SISTEM
+### ARSITEKTUR SISTEM
+
+```text
 +-------------------+        HTTP POST /publish         +------------------------+
 |   Publisher 1     | --------------------------------> |                        |
 +-------------------+                                   |                        |
@@ -165,14 +167,13 @@ ARSITEKTUR SISTEM
                         |   (Durable & Persistent)  |                                 |   (ID=1, No Lost-Update) |
                         +------------+--------------+                                 +------------+-------------+
                                      |                                                             |
-                                     |                                                             |
                                      +----------------------(Data Source)--------------------------+
                                                                     |
                                                                     v
                                                        +----------------------------+
                                                        |  GET /events & GET /stats  |
                                                        +----------------------------+
-
+```
 Komponen Utama
 Komponen Utama
 
