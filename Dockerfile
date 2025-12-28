@@ -1,35 +1,33 @@
 # 1. Base Image
 FROM python:3.11-slim
 
+# --- TAMBAHAN: Agar log print() muncul seketika di docker logs ---
+ENV PYTHONUNBUFFERED=1
+
 # 2. Set Working Directory
 WORKDIR /app
 
-# 3. Buat User Non-Root
+# 3. Buat User Non-Root (Syarat UTS)
 RUN adduser --disabled-password --gecos "" appuser
 
-# 4. Salin File Dependensi
+# 4. Salin dan Instal Dependensi
 COPY requirements.txt ./
-
-# 5. Instal Dependensi
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6. Salin Kode Aplikasi
+# 5. Salin Semua Kode (Termasuk publisher & performance_test)
+# Saya gabungkan di sini agar urutannya rapi
 COPY src/ ./src/
-
-# ==== PERBAIKAN DI BAWAH INI ====
-# Salin juga skrip publisher dan performance test ke /app
 COPY publisher.py ./
 COPY performance_test.py ./
-# ==== AKHIR PERBAIKAN ====
 
-# 7. Atur Kepemilikan File
+# 6. Atur Kepemilikan File (PENTING: Agar appuser bisa tulis database SQLite)
 RUN chown -R appuser:appuser /app
 
-# 8. Ganti User
+# 7. Ganti ke User Non-Root
 USER appuser
 
-# 9. Expose Port
+# 8. Expose Port
 EXPOSE 8080
 
-# 10. Perintah Eksekusi (CMD)
+# 9. Perintah Eksekusi
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
